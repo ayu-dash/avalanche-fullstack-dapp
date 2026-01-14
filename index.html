@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avalanche Wallet Connect | Fuji Testnet</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">
+                <span class="logo-icon">◆</span>
+                <span>Avalanche dApp</span>
+            </div>
+            <div class="status-badge" id="statusBadge">
+                <span class="dot"></span>
+                <span id="badgeText">Disconnected</span>
+            </div>
+        </div>
+
+        <h1>Connect Your Wallet</h1>
+        <p class="subtitle">Avalanche Fuji Testnet</p>
+
+        <button id="connectBtn" class="connect-btn">
+            Connect Wallet
+        </button>
+
+        <div id="errorBox" class="error-box" style="display: none;">
+            <span id="errorText"></span>
+        </div>
+
+        <div class="card">
+            <div class="row">
+                <span class="label">Status</span>
+                <span id="status">Not Connected</span>
+            </div>
+            <div class="row">
+                <span class="label">Address</span>
+                <div class="address-wrap">
+                    <span id="address">-</span>
+                    <button id="copyBtn" class="copy-btn" style="display: none;">Copy</button>
+                </div>
+            </div>
+            <div class="row">
+                <span class="label">Network</span>
+                <span id="network">-</span>
+            </div>
+            <div class="row">
+                <span class="label">Balance</span>
+                <span><span id="balance">-</span> AVAX</span>
+            </div>
+        </div>
+
+        <div class="participant-card">
+            <div class="participant-title">Info User</div>
+            <div class="row">
+                <span>Nama Lengkap:</span>
+                <span>Adrian Yudhaswara</span>
+            </div>
+            <div class="row">
+                <span>NIM:</span>
+                <span>231011402457</span>
+            </div>
+        </div>
+
+        <div class="chain-info">
+            Chain ID: <span id="chainId">-</span>
+        </div>
+    </div>
+
+    <script src="assets/script.js"></script>
+</body>
+
+</html>
