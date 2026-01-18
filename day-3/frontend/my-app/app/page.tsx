@@ -13,6 +13,7 @@ import {
 } from 'wagmi';
 import { injected } from 'wagmi/connectors';
 import CONTRACT_ADDRESS from '@/src/contracts/address';
+import { getBlockchainValue, getBlockchainEvents } from '@/src/services/blockchain.service';
 
 // ==============================
 // CONFIG
@@ -40,10 +41,23 @@ const SIMPLE_STORAGE_ABI = [
 ] as const;
 
 // ==============================
+// TYPES
+// ==============================
+interface BlockchainEvent {
+  blockNumber: string;
+  txHash: string;
+  value: string;
+}
+
+// ==============================
 // HELPER FUNCTIONS
 // ==============================
 const shortenAddress = (address: string) => {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
+};
+
+const shortenHash = (hash: string) => {
+  return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
 };
 
 // Toast Component
@@ -95,6 +109,7 @@ export default function Page() {
   // ==============================
   // LOCAL STATE
   // ==============================
+  const [mounted, setMounted] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [toast, setToast] = useState<{
     message: string;
@@ -102,6 +117,52 @@ export default function Page() {
   } | null>(null);
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>();
   const [copied, setCopied] = useState(false);
+
+  // ==============================
+  // BACKEND API STATE 
+  // ==============================
+  const [backendValue, setBackendValue] = useState<string | null>(null);
+  const [backendEvents, setBackendEvents] = useState<BlockchainEvent[]>([]);
+  const [isLoadingBackend, setIsLoadingBackend] = useState(false);
+  const [backendError, setBackendError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // ==============================
+  // FETCH FROM BACKEND API 
+  // ==============================
+  const fetchBackendData = useCallback(async () => {
+    setIsLoadingBackend(true);
+    setBackendError(null);
+    try {
+      const [valueData, eventsData] = await Promise.all([
+        getBlockchainValue(),
+        getBlockchainEvents(),
+      ]);
+      setBackendValue(valueData.value?.toString() ?? valueData.toString());
+      setBackendEvents(eventsData.events ?? eventsData ?? []);
+    } catch (err) {
+      console.error('Backend fetch error:', err);
+      setBackendError(err instanceof Error ? err.message : 'Failed to fetch from backend');
+    } finally {
+      setIsLoadingBackend(false);
+    }
+  }, []);
+
+  // Fetch backend data on mount and auto-refresh every 10 seconds
+  useEffect(() => {
+    if (mounted) {
+      fetchBackendData();
+
+      const interval = setInterval(() => {
+        fetchBackendData();
+      }, 10000);
+
+      return () => clearInterval(interval);
+    }
+  }, [mounted, fetchBackendData]);
 
   // ==============================
   // NETWORK STATUS
@@ -154,11 +215,12 @@ export default function Page() {
   useEffect(() => {
     if (isConfirmed) {
       refetch();
+      fetchBackendData(); // Also refresh backend data
       setToast({ message: 'Transaction confirmed!', type: 'success' });
       setInputValue('');
       setTxHash(undefined);
     }
-  }, [isConfirmed, refetch]);
+  }, [isConfirmed, refetch, fetchBackendData]);
 
   // Handle connect error
   useEffect(() => {
@@ -232,7 +294,7 @@ export default function Page() {
             </div>
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 rounded-full text-xs">
               <span
-                className={`w-2 h-2 rounded-full ${isConnected
+                className={`w-2 h-2 rounded-full ${mounted && isConnected
                   ? isWrongNetwork
                     ? 'bg-yellow-500'
                     : 'bg-emerald-400 shadow-[0_0_8px_#00f5a0]'
@@ -240,7 +302,7 @@ export default function Page() {
                   }`}
               ></span>
               <span>
-                {isConnected
+                {mounted && isConnected
                   ? isWrongNetwork
                     ? 'Wrong Network'
                     : 'Connected'
@@ -250,7 +312,7 @@ export default function Page() {
           </div>
 
           <h1 className="text-2xl font-bold text-center mb-1.5">
-            Day 3 – Frontend dApp
+            Day 5 – Full Stack dApp
           </h1>
           <p className="text-center text-white/60 mb-5">
             Avalanche Fuji Testnet
@@ -264,7 +326,7 @@ export default function Page() {
           )}
 
           {/* Connect Button */}
-          {!isConnected ? (
+          {!(mounted && isConnected) ? (
             <button
               onClick={() => connect({ connector: injected() })}
               disabled={isConnecting}
@@ -288,15 +350,15 @@ export default function Page() {
           <div className="bg-black/20 rounded-xl p-4 mb-4">
             <div className="flex justify-between items-center py-3 border-b border-white/[0.08]">
               <span className="text-white/70">Status</span>
-              <span>{isConnected ? 'Connected' : 'Not Connected'}</span>
+              <span>{mounted && isConnected ? 'Connected' : 'Not Connected'}</span>
             </div>
             <div className="flex justify-between items-center py-3 border-b border-white/[0.08]">
               <span className="text-white/70">Address</span>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-sm">
-                  {address ? shortenAddress(address) : '-'}
+                  {mounted && address ? shortenAddress(address) : '-'}
                 </span>
-                {address && (
+                {mounted && address && (
                   <button
                     onClick={copyAddress}
                     className="bg-white/10 border-none px-2 py-1 rounded-md text-xs text-white hover:bg-white/20 transition-colors cursor-pointer"
@@ -325,10 +387,50 @@ export default function Page() {
             </div>
           </div>
 
+          {/* Recent Events Card */}
+          <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4 mb-4">
+            <div className="font-semibold text-purple-400 mb-3 pb-2 border-b border-purple-500/20 flex justify-between items-center">
+              <span>Recent Events</span>
+              <button
+                onClick={fetchBackendData}
+                disabled={isLoadingBackend}
+                className="text-xs bg-purple-500/20 px-2 py-1 rounded hover:bg-purple-500/30 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {isLoadingBackend ? '...' : '↻'}
+              </button>
+            </div>
+            {backendError ? (
+              <div className="text-red-400 text-sm py-2">{backendError}</div>
+            ) : (
+              <div className="max-h-40 overflow-y-auto space-y-2">
+                {backendEvents.length > 0 ? (
+                  backendEvents.slice(0, 10).map((event, idx) => (
+                    <div key={idx} className="bg-black/20 p-2 rounded text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-white/50">Block:</span>
+                        <span className="text-purple-300">{event.blockNumber}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-white/50">Tx:</span>
+                        <span className="text-purple-300 font-mono">{shortenHash(event.txHash)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-white/50">Value:</span>
+                        <span className="text-purple-300">{event.value}</span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-white/50 text-xs text-center py-4">No events found</div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Read Contract Card */}
           <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-4">
             <div className="font-semibold text-red-400 mb-3 pb-2 border-b border-red-500/20">
-              Contract Value (Read)
+              Contract Value (Direct Read)
             </div>
             <div className="text-4xl font-bold text-cyan-400 text-center py-4">
               {isReading ? '...' : value?.toString() ?? '-'}
@@ -354,13 +456,13 @@ export default function Page() {
               placeholder="Enter new value"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              disabled={!isConnected || isWriting || isConfirming}
+              disabled={!(mounted && isConnected) || isWriting || isConfirming}
               className="w-full p-3 rounded-xl border border-white/20 bg-black/30 text-white text-base mb-3 outline-none focus:border-cyan-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <button
               onClick={handleSetValue}
-              disabled={!isConnected || isWriting || isConfirming || isWrongNetwork}
-              className={`w-full py-3.5 rounded-xl font-semibold transition-all duration-200 ${!isConnected || isWriting || isConfirming || isWrongNetwork
+              disabled={!(mounted && isConnected) || isWriting || isConfirming || isWrongNetwork}
+              className={`w-full py-3.5 rounded-xl font-semibold transition-all duration-200 ${!(mounted && isConnected) || isWriting || isConfirming || isWrongNetwork
                 ? 'bg-gradient-to-r from-gray-600 to-gray-700 text-white/50 cursor-not-allowed'
                 : 'bg-gradient-to-r from-cyan-400 to-cyan-600 text-[#0c0c1e] hover:-translate-y-0.5 hover:shadow-lg hover:shadow-cyan-500/40 cursor-pointer'
                 }`}
@@ -391,3 +493,4 @@ export default function Page() {
     </>
   );
 }
+
